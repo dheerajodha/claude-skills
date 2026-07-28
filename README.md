@@ -80,9 +80,10 @@ Generate a report of all mid-sprint story additions.
 
 This command:
 1. Queries all issues in the sprint
-2. Searches comments for `[MID-SPRINT-ADD]` tags
-3. Generates a report: which stories were added, by whom, when, and why
-4. Optionally posts to the team Slack channel
+2. Detects mid-sprint additions via JQL (newly created issues) and changelog analysis (pre-existing issues moved in)
+3. Enriches with `[MID-SPRINT-ADD]` comment reasons when available
+4. Generates a report: which stories were added, by whom, when, and why
+5. Optionally posts to the team Slack channel
 
 ## Skills
 
@@ -94,10 +95,6 @@ Core skill for investigating individual policy violations. Automatically invoked
 - "Why did `olm.unmapped_references` fail?"
 - "What does the `rpm_packages.unique_version` rule check?"
 - "Debug this EC validation error: [paste error]"
-
-### `mid-sprint-tracking`
-
-Track stories added to sprints after they've started. Provides the comment convention and configuration used by `/mid-sprint-add` and `/sprint-report`.
 
 ## File Structure
 
@@ -114,8 +111,6 @@ Track stories added to sprints after they've started. Provides the comment conve
 │   │   ├── SKILL.md             # Skill definition
 │   │   ├── debugging.md         # Full debugging reference
 │   │   └── summarize_violations.py  # Log parsing utility
-│   └── mid-sprint-tracking/
-│       └── SKILL.md             # Mid-sprint tracking skill
 └── settings.local.json          # Claude Code settings
 ```
 
