@@ -94,9 +94,11 @@ Blockers that prevent starting regardless of how clear the story is.
 - Does this depend on work by another team that hasn't landed?
 - Does this need an upstream PR to merge first?
 - Are there open decisions that need to be made before implementation? (architecture choices, API designs, format decisions)
+- Do the Jira linked issues include unresolved blocking relationships? (Check "is blocked by" links retrieved in Step 2 — if the linked issue is not Done/Closed, it's a blocker)
 
 **Detection signals for Blocked:**
-- "Blocked by", "depends on", "waiting for", "after X lands"
+- Jira "is blocked by" links to issues that are not Done/Closed
+- "Blocked by", "depends on", "waiting for", "after X lands" in story text
 - References to unmerged PRs as the source of truth for a format/API
 - "Once X is decided" or similar deferred-decision language
 

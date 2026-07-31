@@ -40,9 +40,7 @@ For each candidate, record:
 
 ### Step 2: Filter for persistence value
 
-For each candidate, first sanitize, then apply the quality filters. All three quality filters must pass:
-
-**Sensitivity check (mandatory, before filtering):** Strip any secrets, credentials, tokens, API keys, PII, customer data, or confidential payloads from candidates. Retain only the architectural knowledge — the design rationale, constraints, and integration patterns. If a candidate's value depends entirely on the sensitive content (e.g., "the API key format is X"), drop it.
+For each candidate, apply these filters. All three must pass:
 
 | Filter | Question | If no → drop |
 |--------|----------|--------------|
