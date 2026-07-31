@@ -30,7 +30,7 @@ For each question, classify the information as:
 - **Findable** — the story doesn't provide it, but you can find it in the codebase (greppable function names, well-known directory structures, etc.)
 - **Missing** — you can't start without someone providing this
 
-Only **missing** information blocks a story from Act Now. **Findable** information is worth noting (it adds implementation time) but is not blocking.
+Only **missing** information blocks a story's information readiness. **Findable** information is worth noting (it adds implementation time) but is not blocking. A story can also be blocked by external dependencies (Q3) regardless of information quality — see Step 4 for bucket precedence.
 
 #### Assessment method: Ask questions, then try to answer them
 
