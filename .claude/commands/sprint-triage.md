@@ -1,6 +1,6 @@
 ---
 description: Triage new sprint stories — assess clarity, dependencies, scope, and repos, then produce a categorized triage report
-allowed-tools: Read, Write, Bash, Glob, Grep, Task
+allowed-tools: Read, Write, Bash, Glob, Grep, Task, mcp__work-assistant__jira_sprint_issues, mcp__work-assistant__jira_get_issue
 ---
 
 # Sprint Triage
@@ -74,7 +74,7 @@ Even with a clear goal, the implementer needs enough technical detail to write c
 - Do I know where to start in the code? (file paths, function names, package names, CLI commands, error messages to grep for)
 - Do I know what the inputs and outputs look like? (data formats, schemas, sample values)
 - Are there examples? (sample input/output, before/after, test cases)
-- If specs or standards are referenced, are they linked or described?
+- If specs or standards are referenced, are they linked or described? A public spec without a link is only findable if the format is already used in the codebase (e.g., greppable type definitions or sample files). Otherwise, it's missing.
 - If domain-specific terms are used, can I find their meaning in the codebase or are they explained?
 - Are there similar implementations I can use as patterns? ("follow the pattern in X")
 
@@ -93,22 +93,25 @@ Blockers that prevent starting regardless of how clear the story is.
 **Check for:**
 - Does this depend on work by another team that hasn't landed?
 - Does this need an upstream PR to merge first?
-- Does this require access, credentials, or infrastructure the implementer might not have?
 - Are there open decisions that need to be made before implementation? (architecture choices, API designs, format decisions)
-- Does this reference systems outside the workspace without explaining how to access them?
 
-**Detection signals:**
+**Detection signals for Blocked:**
 - "Blocked by", "depends on", "waiting for", "after X lands"
-- References to external teams or people ("talk to", "check with", "coordinate with")
-- Open questions in the description ("TBD", "to be determined", question marks in key sections)
-- "Once X is decided" or similar deferred-decision language
 - References to unmerged PRs as the source of truth for a format/API
+- "Once X is decided" or similar deferred-decision language
+
+**Detection signals for Clarify** (not Blocked — these need information, not a dependency to resolve):
+- References to systems outside the workspace without explaining how to access them
+- Requires access, credentials, or infrastructure the implementer might not have, but the story doesn't explain how to obtain them
+- References to external teams or people ("talk to", "check with", "coordinate with") without specifying what information is needed
+- Open questions in the description ("TBD", "to be determined", question marks in key sections)
 
 #### Question 4: Do I know where the work goes?
 
 Which repository or repositories does the work live in?
 
 **Keyword mapping** (from the story description and summary):
+
 | Signal | Repo |
 |--------|------|
 | Policy rules, Rego, attestation validation rules, SLSA checks | `ec-policies` |
@@ -147,7 +150,7 @@ Without scope boundaries, an LLM will over-build — adding error handling, abst
 - Open-ended language: "and more", "etc.", "as needed", "other improvements", "and similar"
 - "Improve" / "optimize" / "clean up" without specific measurable targets
 - Story describes work that would naturally be 3+ PRs
-- Story touches more than 2-3 repos without clear task decomposition
+- Story touches more than 3 repos without clear task decomposition
 
 ### Step 4: Categorize into Buckets
 
@@ -169,8 +172,8 @@ Based on the five questions, place each story into exactly one bucket.
 |--------|----------|
 | **Act Now** | All required signals are solid. No blockers (Q3). Repo known (Q4). Helpful signals don't all need to be present, but any that are missing or only findable should be noted. **The litmus test: an LLM knows what to build and can verify when it's done.** |
 | **Break Down** | Required signals are present for the overall goal, but scope (Q5) is too broad — the work spans too many files, repos, or concerns for a single implementation pass. Needs decomposition into individually-workable tasks, each of which would pass the Act Now test. |
-| **Clarify** | One or more required signals missing or compromised by ambiguity. Also applies when the story references systems, repos, or tools outside the workspace without explaining how to access them. The report lists **specific, answerable questions** — not "needs more detail" but "Which parser is this referring to — the v0.2 parser or the v1.0 parser?" |
-| **Blocked** | Q3 identifies an external dependency — unmerged upstream PR, waiting on another team, unresolved decision — regardless of how well other questions are answered. Note the specific blocker. |
+| **Clarify** | One or more required signals missing or compromised by ambiguity. Also applies when the story references systems, repos, or tools outside the workspace without explaining how to access them, or needs access/credentials/coordination details that aren't provided. The report lists **specific, answerable questions** — not "needs more detail" but "Which parser is this referring to — the v0.2 parser or the v1.0 parser?" |
+| **Blocked** | Q3 identifies a hard external dependency — unmerged upstream PR, waiting on another team's deliverable, unresolved architecture decision — regardless of how well other questions are answered. Note the specific blocker. Missing access information alone is Clarify, not Blocked. |
 
 If a story could fit multiple buckets, use the highest-priority bucket: Blocked > Clarify > Break Down > Act Now.
 

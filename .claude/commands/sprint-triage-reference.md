@@ -62,7 +62,7 @@ These patterns in story descriptions or scope sections signal unbounded work tha
 - Lists that end with an ellipsis or imply continuation
 
 **Multi-PR signals:**
-- Story describes work across 3+ distinct areas
+- Story describes work across more than 3 distinct areas
 - Story has 5+ acceptance criteria spanning different concerns
 - Story uses phase language ("first... then... finally...") describing sequential work items
 - Estimated scope language ("this is a big one", "multi-sprint")
@@ -83,7 +83,7 @@ These patterns in story descriptions or scope sections signal unbounded work tha
 | Signal | What to check | Provided example | Findable example | Missing example |
 |--------|--------------|-----------------|-----------------|----------------|
 | Entry points | File paths, function names, packages | "Update `internal/evaluator/config.go`" | "Add a flag like `--ignore-sigstore`" (greppable) | "Update the validation logic" |
-| I/O examples | Sample input, expected output, data shapes | JSON block showing attestation format | "Uses SLSA Provenance v1.0 format" (spec is public) | "Process the attestation" |
+| I/O examples | Sample input, expected output, data shapes | JSON block showing attestation format | "Uses SLSA Provenance v1.0 format" (linked or already used in codebase) | "Process the attestation" |
 | Pattern references | Similar implementations to follow | "Follow the pattern in `slsa_provenance_available.rego`" | "Like the --ignore-sigstore flag" (findable if it exists) | (no analogues mentioned) |
 | Domain context | Specs, docs, background knowledge | "SLSA spec: https://slsa.dev/provenance/v1" | Term appears in codebase comments/docs | Jargon with no definition or codebase presence |
 | Scope boundaries | What's in/out of scope | "Out of scope: backwards compat with v0.2" | AC is a closed checklist (implicit boundary) | "Improve error handling" (how much? where?) |
@@ -99,7 +99,7 @@ Stories that reference systems outside the workspace need special scrutiny. Thes
 - "The team has..." or "They provide..." without concrete access details
 - References to Slack conversations, meetings, or verbal agreements as the source of requirements
 
-**These should push to Clarify** unless the story explains how to access the external system, or the system is already configured in the workspace (e.g., the MCP tools, `ec` CLI, `oc` CLI).
+**These push to Clarify** (not Blocked) unless the story explains how to access the external system, or the system is already configured in the workspace (e.g., the MCP tools, `ec` CLI, `oc` CLI). Missing access information is a clarification gap — someone can answer "how do I access X?" — not a hard dependency like an unmerged PR or an unresolved architecture decision.
 
 ## Assessment Checklist
 

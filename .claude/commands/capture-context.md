@@ -40,7 +40,9 @@ For each candidate, record:
 
 ### Step 2: Filter for persistence value
 
-For each candidate, apply these filters. All three must pass:
+For each candidate, first sanitize, then apply the quality filters. All three quality filters must pass:
+
+**Sensitivity check (mandatory, before filtering):** Strip any secrets, credentials, tokens, API keys, PII, customer data, or confidential payloads from candidates. Retain only the architectural knowledge — the design rationale, constraints, and integration patterns. If a candidate's value depends entirely on the sensitive content (e.g., "the API key format is X"), drop it.
 
 | Filter | Question | If no → drop |
 |--------|----------|--------------|
@@ -60,14 +62,15 @@ If nothing passes all three filters, report that no design doc is needed and sto
 Search the current repo for existing design docs that might already cover the subsystem:
 
 ```bash
-ls design/ 2>/dev/null
-find . -name 'DESIGN.md' -not -path './.git/*'
+find . -not -path './.git/*' \( -iname 'DESIGN.md' -o -iname 'design-*.md' -o -path '*/design/*.md' \) 2>/dev/null
 ```
+
+The canonical location for design docs is `design/` at the repo root. Also check for `DESIGN.md` files in subdirectories (some subsystems keep them alongside the code).
 
 **Read every doc that might overlap with your candidates.** Don't just list files — read their contents so you know what's already documented. This prevents duplicating existing knowledge and helps you decide whether to:
 
 - **Update an existing doc** → The subsystem is already documented; add to it
-- **Create a new doc** → No existing doc covers this subsystem
+- **Create a new doc** → No existing doc covers this subsystem; create it in `design/`
 
 Name files after the subsystem or concern, not the story:
 - `publishing-pipeline.md` not `EC-1942-notes.md`
@@ -96,6 +99,7 @@ that isn't obvious from reading the code. Focus on WHY, not WHAT.>
 Each section heading should be a question or concern an implementer would have. Each body answers it with the operational knowledge, design rationale, or constraint. See the reference doc for examples.
 
 **If creating a new doc:**
+- Create it in `design/` at the repo root (create the directory if it doesn't exist)
 - Write a 1-2 sentence overview
 - Add one section per knowledge item that passed filtering
 - Keep each section focused — one concept per heading
