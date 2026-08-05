@@ -20,7 +20,7 @@ naYJRuLprwIv6FDhZ5yFjYUEtsmoNcW7rx2KM6FOXGsCX3BNc7qhHELT+g==
 
 Rule: approved_image_registries
 - Check OCI PURL repository_url in SPDX packages
-- Approved registries: quay.io, registry.redhat.io, registry.access.redhat.com, gcr.io/distroless
+- Approved registries: registry.redhat.io, registry.access.redhat.com
 - Severity: failure
 ```
 
