@@ -239,6 +239,76 @@ some ann in pkg.annotations
 contains(ann.comment, "hermeto:found_by")
 ```
 
+### Accessing SLSA Provenance v1.0
+
+```rego
+# Filter for SLSA Provenance v1.0
+some att in input.attestations
+statement := att.statement
+statement.predicateType == "https://slsa.dev/provenance/v1"
+predicate := statement.predicate
+
+# Get builder ID
+builder_id := predicate.runDetails.builder.id
+
+# Get build type
+build_type := predicate.buildDefinition.buildType
+
+# Iterate over resolved dependencies (source materials, task refs)
+some dep in predicate.buildDefinition.resolvedDependencies
+uri := dep.uri
+some digest_alg in object.keys(dep.digest)
+digest := dep.digest[digest_alg]
+
+# Access external parameters (PipelineRun params)
+some param in predicate.buildDefinition.externalParameters.runSpec.params
+param.name == "git-repo"
+value := param.value
+
+# Get build finished timestamp
+finished := predicate.runDetails.metadata.buildFinishedOn
+```
+
+### Accessing SLSA Provenance v0.2
+
+```rego
+# Filter for SLSA Provenance v0.2
+some att in input.attestations
+statement := att.statement
+statement.predicateType == "https://slsa.dev/provenance/v0.2"
+predicate := statement.predicate
+
+# Get builder ID
+builder_id := predicate.builder.id
+
+# Get build type
+build_type := predicate.buildType
+
+# Iterate over materials (source refs, task refs)
+some material in predicate.materials
+uri := material.uri
+some digest_alg in object.keys(material.digest)
+digest := material.digest[digest_alg]
+
+# Access build config tasks
+some task in predicate.buildConfig.tasks
+task_name := task.name
+
+# Access external parameters (v0.2 nests them under invocation)
+# NOTE: v0.2 invocation.parameters is a map, not a list of {name, value} like v1.0
+params := predicate.invocation.parameters
+
+# Get build finished timestamp (v0.2: metadata.buildFinishedOn; v1.0: runDetails.metadata.buildFinishedOn)
+finished := predicate.metadata.buildFinishedOn
+```
+
+> **Version paths differ.** Builder ID is at `runDetails.builder.id` (v1.0) vs `builder.id` (v0.2);
+> source materials at `buildDefinition.resolvedDependencies` (v1.0) vs `materials` (v0.2); build type at
+> `buildDefinition.buildType` (v1.0) vs `buildType` (v0.2). See `slsa-provenance-structure.md` for the full
+> path comparison. When a rule must support both versions, filter each predicate type separately, or use a
+> helper with an `else` chain that tries each version's path (see the dual-version examples in
+> `slsa-provenance-structure.md`).
+
 ### Accessing Rule Data
 
 Rule data comes from policy configuration:
