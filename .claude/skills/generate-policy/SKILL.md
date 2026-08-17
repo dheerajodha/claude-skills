@@ -16,6 +16,9 @@ Help users validate container images with Conforma policies. The user doesn't ne
 | Image reference | Container image to validate (optional) | `quay.io/org/app@sha256:abc123...` |
 | Public key | Cosign public key file (optional) | `cosign.pub` |
 | Validation requirements | What they want to check | "Ensure npm packages come from registry.npmjs.org" |
+| Builder IDs | Allowed build service identifiers (SLSA provenance) | `["https://tekton.dev/chains/v2"]` |
+| Source repository | Expected source repo for provenance correlation (SLSA provenance) | `https://github.com/org/repo` |
+| Build type | Expected build system type (SLSA provenance) | `"tekton.dev/v1/PipelineRun"` |
 
 See [Policy Requirements Template](../../../POLICY_REQUIREMENTS_TEMPLATE.md) for a complete requirements checklist.
 
@@ -180,6 +183,67 @@ For any rule that validates SBOM data, you MUST:
 
 **DO NOT** iterate directly over `input.attestations` for SBOM data - always use the library.
 
+## SLSA Provenance Access (For Provenance Rules)
+
+**IMPORTANT**: SLSA provenance rules do NOT use the SBOM library (`policy/lib/sbom.rego`). Provenance attestations are always inline in `input.attestations` — no OCI blob fetching is needed.
+
+For any rule that validates SLSA provenance data:
+
+1. **Access attestations directly** — filter by predicate type:
+   ```rego
+   some att in input.attestations
+   att.statement.predicateType in {
+       "https://slsa.dev/provenance/v1",
+       "https://slsa.dev/provenance/v0.2",
+   }
+   ```
+
+2. **Use helper functions for dual-version support** — SLSA v1.0 and v0.2 have different field paths:
+   ```rego
+   _builder_id(att) := builder_id if {
+       # slsa v0.2
+       builder_id := att.statement.predicate.builder.id
+   } else := builder_id if {
+       # slsa v1.0
+       builder_id := att.statement.predicate.runDetails.builder.id
+   }
+   ```
+
+3. **No library directory needed** — directory structure is simpler than SBOM rules:
+   ```
+   build_policies/
+   ├── policy.yaml
+   ├── data/
+   │   └── allowed_builders.yaml
+   └── policy/
+       └── builder_verification/
+           ├── builder_verification.rego
+           └── builder_verification_test.rego
+   ```
+
+4. **Policy config** — no library path entry needed:
+   ```yaml
+   sources:
+     - name: my-rules
+       data:
+         - ./data
+       policy:
+         - ./policy/builder_verification    # No ./policy/lib needed
+   ```
+
+### Required Inputs for SLSA Provenance Rules
+
+When generating SLSA provenance rules, prompt the user for these inputs. See [SLSA Provenance Structure Reference](reference/slsa-provenance-structure.md) for full details.
+
+| Rule Type | Required Input | Description | Example |
+|-----------|---------------|-------------|---------|
+| Builder ID validation | `allowed_builder_ids` | Accepted builder identifiers | `["https://tekton.dev/chains/v2"]` |
+| Attestation type validation | `allowed_predicate_types` | Accepted in-toto predicate types | `["https://slsa.dev/provenance/v1"]` |
+| Build type validation | `allowed_provenance_build_types` | Accepted build type strings | `["tekton.dev/v1/PipelineRun"]` |
+| Source correlation | `supported_vcs` | Supported VCS types | `["git"]` |
+| Source correlation | `supported_digests` | Supported digest algorithms | `["sha1", "gitCommit", "sha256"]` |
+| Pipeline run params | `pipeline_run_params` | Expected PipelineRun parameter names | `["git-repo", "git-revision", "output-image"]` |
+
 ## Conforma Command Template
 
 Run from within the policy set directory (e.g., `cd release_policies`):
@@ -211,6 +275,9 @@ ec validate image \
 #### SBOM Validation
 - [SBOM Structure Reference](reference/sbom-structure.md) - SPDX/CycloneDX paths, required inputs
 - [SPDX 2.3 Schema](reference/spdx-schema.json), [CycloneDX 1.5 Schema](reference/cyclonedx-schema.json)
+
+#### SLSA Provenance
+- [SLSA Provenance Structure Reference](reference/slsa-provenance-structure.md) - v1.0/v0.2 field paths, required inputs, dual-version patterns
 
 ### Templates
 
@@ -316,3 +383,144 @@ some component in s.components
 - Components: `s.components`
 - PURL: `component.purl`
 - Distribution URL: `component.externalReferences[].url` where `type == "distribution"`
+
+### Rego v1 Essentials (SLSA Provenance Rule)
+
+```rego
+package <rule_name>
+
+import rego.v1
+
+# METADATA
+# title: Rule Title
+# description: >-
+#   What the rule checks.
+# custom:
+#   short_name: rule_name
+#   failure_msg: "Error: %s"
+#   solution: How to fix.
+deny contains result if {
+    # Filter for SLSA provenance attestations (both versions)
+    some att in input.attestations
+    att.statement.predicateType in {
+        "https://slsa.dev/provenance/v1",
+        "https://slsa.dev/provenance/v0.2",
+    }
+
+    # Get builder ID (dual-version support)
+    builder_id := _builder_id(att)
+
+    # Validate against allowed list
+    allowed_ids := object.get(data.rule_data, "allowed_builder_ids", [])
+    not builder_id in allowed_ids
+
+    result := {
+        "code": "<rule_name>.rule_name",
+        "msg": sprintf("Error: builder %s is not allowed", [builder_id]),
+        "severity": "failure",
+    }
+}
+
+# Helper: extract builder ID (v0.2 first, then v1.0)
+_builder_id(att) := builder_id if {
+    builder_id := att.statement.predicate.builder.id
+} else := builder_id if {
+    builder_id := att.statement.predicate.runDetails.builder.id
+}
+
+# Helper: extract materials/resolved dependencies (version-aware)
+_materials(att) := att.statement.predicate.buildDefinition.resolvedDependencies if {
+    att.statement.predicateType == "https://slsa.dev/provenance/v1"
+} else := att.statement.predicate.materials
+```
+
+### SLSA Dual-Version Support
+
+SLSA v1.0 and v0.2 use different field paths. Use helper functions for version-agnostic access:
+
+| Data Element | v1.0 Path | v0.2 Path |
+|-------------|-----------|-----------|
+| Builder ID | `predicate.runDetails.builder.id` | `predicate.builder.id` |
+| Build type | `predicate.buildDefinition.buildType` | `predicate.buildType` |
+| Materials | `predicate.buildDefinition.resolvedDependencies` | `predicate.materials` |
+| Build finished | `predicate.runDetails.metadata.buildFinishedOn` | `predicate.metadata.buildFinishedOn` |
+
+### SLSA Data File Format
+
+```yaml
+# data/allowed_builders.yaml
+rule_data:
+  allowed_builder_ids:
+    - "https://tekton.dev/chains/v2"
+  allowed_predicate_types:
+    - "https://slsa.dev/provenance/v1"
+    - "https://slsa.dev/provenance/v0.2"
+```
+
+The data is accessed in Rego rules via `data.rule_data`:
+
+```rego
+allowed_ids := object.get(data.rule_data, "allowed_builder_ids", [])
+not builder_id in allowed_ids
+```
+
+### SLSA Quick Reference
+
+**Filter provenance attestations**:
+```rego
+some att in input.attestations
+att.statement.predicateType in {
+    "https://slsa.dev/provenance/v1",
+    "https://slsa.dev/provenance/v0.2",
+}
+```
+
+**Builder ID** (dual-version):
+```rego
+_builder_id(att) := builder_id if {
+    builder_id := att.statement.predicate.builder.id
+} else := builder_id if {
+    builder_id := att.statement.predicate.runDetails.builder.id
+}
+```
+
+**Source materials** (dual-version):
+```rego
+materials := _materials(att)
+some material in materials
+startswith(material.uri, "git+")
+
+_materials(att) := att.statement.predicate.buildDefinition.resolvedDependencies if {
+    att.statement.predicateType == "https://slsa.dev/provenance/v1"
+} else := att.statement.predicate.materials
+```
+
+**Build type** (dual-version):
+```rego
+_build_type(att) := att.statement.predicate.buildType if {
+    att.statement.predicateType == "https://slsa.dev/provenance/v0.2"
+} else := att.statement.predicate.buildDefinition.buildType
+```
+
+---
+
+## Iterative Refinement
+
+Users can refine generated policies through follow-up conversational requests. This workflow supports incremental changes without regenerating all artifacts from scratch.
+
+### How It Works
+
+1. **Initial generation** — Follow the standard workflow to generate all artifacts
+2. **User requests a change** — e.g., "pin the builder to our Tekton instance", "add an exception for test builds", "tighten the allowed registries"
+3. **Modify existing files** — Edit the generated `.rego`, `_test.rego`, and data files in place rather than regenerating from scratch
+4. **Re-run verification** — After every refinement, re-run both verification steps:
+   - `ec opa test ./policy -v --ignore '*.rego' --ignore 'lib/*'` (OPA tests)
+   - `ec validate image ...` (EC validation, if image provided)
+5. **Report updated results** — Only report success after verification passes
+
+### Guidelines
+
+- **Preserve existing work** — Modify the specific rule, test, or data file affected by the request. Do not regenerate unrelated files.
+- **Maintain test coverage** — When modifying a rule, update the corresponding tests to cover the new behavior. Add new test cases for exceptions or additional conditions.
+- **Update data files** — If the refinement changes configuration values (e.g., adding a builder ID), update the data YAML file rather than hardcoding values in Rego.
+- **Cumulative changes** — Each refinement builds on the previous state. Track all changes so verification reflects the full policy, not just the latest change.
