@@ -185,20 +185,25 @@ For any rule that validates SBOM data, you MUST:
 
 ## SLSA Provenance Access (For Provenance Rules)
 
-**IMPORTANT**: SLSA provenance rules do NOT use the SBOM library (`policy/lib/sbom.rego`). Provenance attestations are always inline in `input.attestations` — no OCI blob fetching is needed.
+**IMPORTANT**: SLSA provenance rules do NOT use the SBOM library (`policy/lib/sbom.rego`) and do not require a local `policy/lib/` directory. Instead, they use runtime-provided helpers from `data.lib` to access provenance attestations.
 
 For any rule that validates SLSA provenance data:
 
-1. **Access attestations directly** — filter by predicate type:
+1. **Use `data.lib` helpers to access attestations** — the EC runtime provides library functions that handle version detection and filtering:
    ```rego
-   some att in input.attestations
-   att.statement.predicateType in {
-       "https://slsa.dev/provenance/v1",
-       "https://slsa.dev/provenance/v0.2",
-   }
+   import data.lib
+
+   # All SLSA provenance attestations (both v1.0 and v0.2)
+   some att in lib.slsa_provenance_attestations
+
+   # PipelineRun attestations only (latest per version, filtered by buildType)
+   some att in lib.pipelinerun_attestations
+
+   # Materials (resolvedDependencies for v1.0, materials for v0.2)
+   materials := lib.attestation_materials(att)
    ```
 
-2. **Use helper functions for dual-version support** — SLSA v1.0 and v0.2 have different field paths:
+2. **Use a local helper for builder ID** — `data.lib` does not provide a cross-version builder ID helper, so define one in the rule:
    ```rego
    _builder_id(att) := builder_id if {
        # slsa v0.2
@@ -209,8 +214,8 @@ For any rule that validates SLSA provenance data:
    }
    ```
 
-3. **No library directory needed** — directory structure is simpler than SBOM rules:
-   ```
+3. **No local library directory needed** — directory structure is simpler than SBOM rules:
+   ```text
    build_policies/
    ├── policy.yaml
    ├── data/
@@ -391,6 +396,8 @@ package <rule_name>
 
 import rego.v1
 
+import data.lib
+
 # METADATA
 # title: Rule Title
 # description: >-
@@ -400,12 +407,8 @@ import rego.v1
 #   failure_msg: "Error: %s"
 #   solution: How to fix.
 deny contains result if {
-    # Filter for SLSA provenance attestations (both versions)
-    some att in input.attestations
-    att.statement.predicateType in {
-        "https://slsa.dev/provenance/v1",
-        "https://slsa.dev/provenance/v0.2",
-    }
+    # Use runtime-provided helpers (NOT direct input.attestations)
+    some att in lib.pipelinerun_attestations
 
     # Get builder ID (dual-version support)
     builder_id := _builder_id(att)
@@ -427,11 +430,6 @@ _builder_id(att) := builder_id if {
 } else := builder_id if {
     builder_id := att.statement.predicate.runDetails.builder.id
 }
-
-# Helper: extract materials/resolved dependencies (version-aware)
-_materials(att) := att.statement.predicate.buildDefinition.resolvedDependencies if {
-    att.statement.predicateType == "https://slsa.dev/provenance/v1"
-} else := att.statement.predicate.materials
 ```
 
 ### SLSA Dual-Version Support
@@ -443,7 +441,7 @@ SLSA v1.0 and v0.2 use different field paths. Use helper functions for version-a
 | Builder ID | `predicate.runDetails.builder.id` | `predicate.builder.id` |
 | Build type | `predicate.buildDefinition.buildType` | `predicate.buildType` |
 | Materials | `predicate.buildDefinition.resolvedDependencies` | `predicate.materials` |
-| Build finished | `predicate.runDetails.metadata.buildFinishedOn` | `predicate.metadata.buildFinishedOn` |
+| Build finished | `predicate.runDetails.metadata.finishedOn` | `predicate.metadata.buildFinishedOn` |
 
 ### SLSA Data File Format
 
@@ -466,16 +464,18 @@ not builder_id in allowed_ids
 
 ### SLSA Quick Reference
 
-**Filter provenance attestations**:
+**Access provenance attestations** (use `data.lib` helpers):
 ```rego
-some att in input.attestations
-att.statement.predicateType in {
-    "https://slsa.dev/provenance/v1",
-    "https://slsa.dev/provenance/v0.2",
-}
+import data.lib
+
+# All SLSA provenance (both v1.0 and v0.2)
+some att in lib.slsa_provenance_attestations
+
+# PipelineRun attestations only (latest per version)
+some att in lib.pipelinerun_attestations
 ```
 
-**Builder ID** (dual-version):
+**Builder ID** (local helper, dual-version):
 ```rego
 _builder_id(att) := builder_id if {
     builder_id := att.statement.predicate.builder.id
@@ -484,15 +484,11 @@ _builder_id(att) := builder_id if {
 }
 ```
 
-**Source materials** (dual-version):
+**Source materials** (use `lib.attestation_materials`):
 ```rego
-materials := _materials(att)
+materials := lib.attestation_materials(att)
 some material in materials
 startswith(material.uri, "git+")
-
-_materials(att) := att.statement.predicate.buildDefinition.resolvedDependencies if {
-    att.statement.predicateType == "https://slsa.dev/provenance/v1"
-} else := att.statement.predicate.materials
 ```
 
 **Build type** (dual-version):
@@ -514,7 +510,7 @@ Users can refine generated policies through follow-up conversational requests. T
 2. **User requests a change** — e.g., "pin the builder to our Tekton instance", "add an exception for test builds", "tighten the allowed registries"
 3. **Modify existing files** — Edit the generated `.rego`, `_test.rego`, and data files in place rather than regenerating from scratch
 4. **Re-run verification** — After every refinement, re-run both verification steps:
-   - `ec opa test ./policy -v --ignore '*.rego' --ignore 'lib/*'` (OPA tests)
+   - `ec opa test ./policy -v --ignore 'lib/*'` (OPA tests)
    - `ec validate image ...` (EC validation, if image provided)
 5. **Report updated results** — Only report success after verification passes
 
