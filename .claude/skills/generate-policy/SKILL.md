@@ -459,7 +459,7 @@ The data is accessed in Rego rules via `data.rule_data`:
 
 ```rego
 allowed_ids := object.get(data.rule_data, "allowed_builder_ids", [])
-not builder_id in allowed_ids
+allowed_types := object.get(data.rule_data, "allowed_predicate_types", [])
 ```
 
 ### SLSA Quick Reference
@@ -473,6 +473,12 @@ some att in lib.slsa_provenance_attestations
 
 # PipelineRun attestations only (latest per version)
 some att in lib.pipelinerun_attestations
+```
+
+**Predicate type validation** (against configured allowlist):
+```rego
+allowed_types := object.get(data.rule_data, "allowed_predicate_types", [])
+not att.statement.predicateType in allowed_types
 ```
 
 **Builder ID** (local helper, dual-version):
