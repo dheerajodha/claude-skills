@@ -189,30 +189,9 @@ For any rule that validates SBOM data, you MUST:
 
 For any rule that validates SLSA provenance data:
 
-1. **Use `data.lib` helpers to access attestations** — the EC runtime provides library functions that handle version detection and filtering:
-   ```rego
-   import data.lib
+1. **Use `data.lib` helpers to access attestations** — `import data.lib` and use `lib.slsa_provenance_attestations`, `lib.pipelinerun_attestations`, and `lib.attestation_materials(att)` for version-agnostic access. See [SLSA Quick Reference](#slsa-quick-reference) for patterns.
 
-   # All SLSA provenance attestations (both v1.0 and v0.2)
-   some att in lib.slsa_provenance_attestations
-
-   # PipelineRun attestations only (latest per version, filtered by buildType)
-   some att in lib.pipelinerun_attestations
-
-   # Materials (resolvedDependencies for v1.0, materials for v0.2)
-   materials := lib.attestation_materials(att)
-   ```
-
-2. **Use a local helper for builder ID** — `data.lib` does not provide a cross-version builder ID helper, so define one in the rule:
-   ```rego
-   _builder_id(att) := builder_id if {
-       # slsa v0.2
-       builder_id := att.statement.predicate.builder.id
-   } else := builder_id if {
-       # slsa v1.0
-       builder_id := att.statement.predicate.runDetails.builder.id
-   }
-   ```
+2. **Define a local `_builder_id` helper** — `data.lib` does not provide a cross-version builder ID helper. See [SLSA Quick Reference](#slsa-quick-reference) for the dual-version pattern.
 
 3. **No local library directory needed** — directory structure is simpler than SBOM rules:
    ```text
